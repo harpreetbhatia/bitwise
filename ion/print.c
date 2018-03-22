@@ -4,6 +4,20 @@ void print_decl(Decl *decl);
 
 int indent;
 
+char *print_buf;
+bool use_print_buf;
+
+#define printf(...) (use_print_buf ? (void)buf_printf(print_buf, __VA_ARGS__) : (void)printf(__VA_ARGS__))
+
+void flush_print_buf(FILE *file) {
+    if (print_buf) {
+        if (file) {
+            fputs(print_buf, file);
+        }
+        buf_clear(print_buf);
+    }
+}
+
 void print_newline() {
     printf("\n%.*s", 2*indent, "                                                                      ");
 }
@@ -20,7 +34,7 @@ void print_typespec(Typespec *type) {
             printf(" ");
             print_typespec(*it);
         }
-        printf(") ");
+        printf(" ) ");
         print_typespec(t->func.ret);
         printf(")");
         break;
@@ -109,12 +123,12 @@ void print_expr(Expr *expr) {
         printf(")");
         break;
     case EXPR_UNARY:
-        printf("(%s ", temp_token_kind_str(e->unary.op));
+        printf("(%s ", token_kind_name(e->unary.op));
         print_expr(e->unary.expr);
         printf(")");
         break;
     case EXPR_BINARY:
-        printf("(%s ", temp_token_kind_str(e->binary.op));
+        printf("(%s ", token_kind_name(e->binary.op));
         print_expr(e->binary.left);
         printf(" ");
         print_expr(e->binary.right);
@@ -149,9 +163,15 @@ void print_stmt_block(StmtBlock block) {
 void print_stmt(Stmt *stmt) {
     Stmt *s = stmt;
     switch (s->kind) {
+    case STMT_DECL:
+        print_decl(s->decl);
+        break;
     case STMT_RETURN:
-        printf("(return ");
-        print_expr(s->return_stmt.expr);
+        printf("(return");
+        if (s->return_stmt.expr) {
+            printf(" ");
+            print_expr(s->return_stmt.expr);
+        }
         printf(")");
         break;
     case STMT_BREAK:
@@ -349,11 +369,13 @@ void print_decl(Decl *decl) {
     }
 }
 
+
 void print_test() {
+    use_print_buf = true;
     // Expressions
     Expr *exprs[] = {
-        expr_binary('+', expr_int(1), expr_int(2)),
-        expr_unary('-', expr_float(3.14)),
+        expr_binary(TOKEN_ADD, expr_int(1), expr_int(2)),
+        expr_unary(TOKEN_SUB, expr_float(3.14)),
         expr_ternary(expr_name("flag"), expr_str("true"), expr_str("false")),
         expr_field(expr_name("person"), "name"),
         expr_call(expr_name("fact"), (Expr*[]){expr_int(42)}, 1),
@@ -445,4 +467,8 @@ void print_test() {
         print_stmt(*it);
         printf("\n");
     }
+    flush_print_buf(stdout);
+    use_print_buf = false;
 }
+
+#undef printf
